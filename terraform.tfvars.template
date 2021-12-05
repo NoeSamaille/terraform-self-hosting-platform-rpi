@@ -1,4 +1,10 @@
 #####################
+# General
+#####################
+
+domain = "example.org"
+
+#####################
 # cert-manager
 #####################
 
@@ -8,8 +14,15 @@ cert_manager_issuer_email = "email@example.com"
 # bitwarden
 #####################
 
+bitwarden_host_path = "/mnt/hdd/bitwarden"
 bitwarden_server_admin_email = "email@example.com"
 bitwarden_host = "bitwarden.example.org"
 bitwarden_smtp_from = "example@gmail.com"
 bitwarden_smtp_username = "example@gmail.com"
 bitwarden_smtp_password = "GMAIL_PASSWORD"
+
+#####################
+# Node-RED
+#####################
+
+node_red_host_path = "/mnt/hdd/node-red"

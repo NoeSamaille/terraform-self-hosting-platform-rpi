@@ -4,10 +4,10 @@
 
 
 resource "helm_release" "metallb" {
-  name          = "metallb"
-  namespace     = "kube-system"
-  repository    = "https://charts.helm.sh/stable"
-  chart         = "metallb"
+  name       = "metallb"
+  namespace  = "kube-system"
+  repository = "https://charts.helm.sh/stable"
+  chart      = "metallb"
   #version      = "2.5.13"
 
   set {
@@ -39,10 +39,10 @@ resource "helm_release" "nginx_ingress_controller" {
   depends_on = [
     helm_release.metallb
   ]
-  name          = "nginx-ingress"
-  namespace     = "kube-system"
-  repository    = "https://charts.helm.sh/stable"
-  chart         = "nginx-ingress"
+  name       = "nginx-ingress"
+  namespace  = "kube-system"
+  repository = "https://charts.helm.sh/stable"
+  chart      = "nginx-ingress"
   #version      = "9.0.9"
 
   set {
@@ -60,11 +60,11 @@ resource "helm_release" "cert_manager" {
   depends_on = [
     helm_release.nginx_ingress_controller,
   ]
-  name          = "cert-manager"
-  namespace     = "kube-system"
-  repository    = "https://charts.jetstack.io"
-  chart         = "cert-manager"
-  version       = "v0.16.0"
+  name       = "cert-manager"
+  namespace  = "kube-system"
+  repository = "https://charts.jetstack.io"
+  chart      = "cert-manager"
+  version    = "v0.16.0"
 }
 
 
@@ -79,7 +79,7 @@ resource "kubernetes_manifest" "clusterissuer_letsencrypt_staging" {
   ]
   manifest = {
     "apiVersion" = "cert-manager.io/v1alpha2"
-    "kind" = "ClusterIssuer"
+    "kind"       = "ClusterIssuer"
     "metadata" = {
       "name" = "letsencrypt-staging"
     }
@@ -109,7 +109,7 @@ resource "kubernetes_manifest" "clusterissuer_letsencrypt_prod" {
   ]
   manifest = {
     "apiVersion" = "cert-manager.io/v1alpha2"
-    "kind" = "ClusterIssuer"
+    "kind"       = "ClusterIssuer"
     "metadata" = {
       "name" = "letsencrypt-prod"
     }
@@ -144,12 +144,25 @@ resource "helm_release" "kubernetes_dashboard" {
   depends_on = [
     helm_release.nginx_ingress_controller
   ]
-  name          = "kubernetes-dashboard"
-  namespace     = "kubernetes-dashboard"
-  create_namespace  = "true"
-  repository    = "https://kubernetes.github.io/dashboard"
-  chart         = "kubernetes-dashboard"
+  name             = "kubernetes-dashboard"
+  namespace        = "kubernetes-dashboard"
+  create_namespace = "true"
+  repository       = "https://kubernetes.github.io/dashboard"
+  chart            = "kubernetes-dashboard"
   #version      = "5.0.4"
+
+  values = [
+    "${file("values/dashboard.values.yaml")}"
+  ]
+
+  set {
+    name  = "ingress.hosts[0]"
+    value = "dashboard.${var.domain}"
+  }
+  set {
+    name  = "ingress.tls[0].hosts[0]"
+    value = "dashboard.${var.domain}"
+  }
 }
 
 # Create admin-user to connect kubernetes-dashboard
@@ -159,9 +172,9 @@ resource "kubernetes_manifest" "serviceaccount_kubernetes_dashboard_admin_user" 
   ]
   manifest = {
     "apiVersion" = "v1"
-    "kind" = "ServiceAccount"
+    "kind"       = "ServiceAccount"
     "metadata" = {
-      "name" = "admin-user"
+      "name"      = "admin-user"
       "namespace" = "kubernetes-dashboard"
     }
   }
@@ -172,19 +185,19 @@ resource "kubernetes_manifest" "clusterrolebinding_admin_user" {
   ]
   manifest = {
     "apiVersion" = "rbac.authorization.k8s.io/v1"
-    "kind" = "ClusterRoleBinding"
+    "kind"       = "ClusterRoleBinding"
     "metadata" = {
       "name" = "admin-user"
     }
     "roleRef" = {
       "apiGroup" = "rbac.authorization.k8s.io"
-      "kind" = "ClusterRole"
-      "name" = "cluster-admin"
+      "kind"     = "ClusterRole"
+      "name"     = "cluster-admin"
     }
     "subjects" = [
       {
-        "kind" = "ServiceAccount"
-        "name" = "admin-user"
+        "kind"      = "ServiceAccount"
+        "name"      = "admin-user"
         "namespace" = "kubernetes-dashboard"
       },
     ]
@@ -198,7 +211,7 @@ resource "kubernetes_manifest" "clusterrolebinding_admin_user" {
 ################################################
 
 
-resource "kubernetes_namespace" "bitwarden" {
+resource "kubernetes_namespace" "bitwarden_ns" {
   depends_on = [
     kubernetes_manifest.clusterissuer_letsencrypt_prod
   ]
@@ -212,7 +225,7 @@ resource "kubernetes_namespace" "bitwarden" {
 }
 resource "kubernetes_persistent_volume" "bitwarden_pv" {
   depends_on = [
-    kubernetes_namespace.bitwarden
+    kubernetes_namespace.bitwarden_ns
   ]
   metadata {
     labels = {
@@ -229,7 +242,7 @@ resource "kubernetes_persistent_volume" "bitwarden_pv" {
     }
     persistent_volume_source {
       host_path {
-        path = "/mnt/hdd-2/bitwarden"
+        path = var.bitwarden_host_path
       }
     }
     storage_class_name = "manual"
@@ -240,7 +253,7 @@ resource "kubernetes_persistent_volume_claim" "bitwarden_pvc" {
     kubernetes_persistent_volume.bitwarden_pv
   ]
   metadata {
-    name = "bitwarden"
+    name      = "bitwarden"
     namespace = "bitwarden"
   }
   spec {
@@ -262,11 +275,11 @@ resource "helm_release" "bitwarden-k8s" {
   depends_on = [
     kubernetes_persistent_volume_claim.bitwarden_pvc
   ]
-  name          = "bitwarden-k8s"
-  namespace     = "bitwarden"
-  chart         = "charts/bitwarden-k8s"
-  timeout = 600
-  wait = true
+  name      = "bitwarden-k8s"
+  namespace = "bitwarden"
+  chart     = "charts/bitwarden-k8s"
+  timeout   = 600
+  wait      = true
   #version      = "5.0.4"
 
   values = [
@@ -274,55 +287,142 @@ resource "helm_release" "bitwarden-k8s" {
   ]
 
   set {
-    name = "env.SIGNUPS_ALLOWED"
+    name  = "env.SIGNUPS_ALLOWED"
     value = var.bitwarden_signups_allowed
   }
   set {
-    name = "env.INVITATIONS_ALLOWED"
+    name  = "env.INVITATIONS_ALLOWED"
     value = var.bitwarden_invitations_allowed
   }
   set {
-    name = "env.ADMIN_TOKEN"
+    name  = "env.ADMIN_TOKEN"
     value = data.external.bitwarden_admin_token.result.token
   }
   set {
-    name = "env.SERVER_ADMIN_EMAIL"
+    name  = "env.SERVER_ADMIN_EMAIL"
     value = var.bitwarden_server_admin_email
   }
   set {
-    name = "env.DOMAIN"
-    value = "https://${var.bitwarden_host}"
+    name  = "env.DOMAIN"
+    value = "https://bitwarden.${var.domain}"
   }
   set {
-    name = "env.SMTP_HOST"
+    name  = "env.SMTP_HOST"
     value = var.bitwarden_smtp_host
   }
   set {
-    name = "env.SMTP_FROM"
+    name  = "env.SMTP_FROM"
     value = var.bitwarden_smtp_from
   }
   set {
-    name = "env.SMTP_PORT"
+    name  = "env.SMTP_PORT"
     value = var.bitwarden_smtp_port
   }
   set {
-    name = "env.SMTP_SSL"
+    name  = "env.SMTP_SSL"
     value = var.bitwarden_smtp_ssl
   }
   set {
-    name = "env.SMTP_USERNAME"
+    name  = "env.SMTP_USERNAME"
     value = var.bitwarden_smtp_username
   }
   set {
-    name = "env.SMTP_PASSWORD"
+    name  = "env.SMTP_PASSWORD"
     value = var.bitwarden_smtp_password
   }
   set {
-    name = "ingress.hosts[0]"
-    value = "${var.bitwarden_host}"
+    name  = "ingress.hosts[0]"
+    value = "bitwarden.${var.domain}"
   }
   set {
-    name = "ingress.tls[0].hosts[0]"
-    value = "${var.bitwarden_host}"
+    name  = "ingress.tls[0].hosts[0]"
+    value = "bitwarden.${var.domain}"
+  }
+}
+
+
+################################################
+# Deploy Node-RED in Kubernetes
+################################################
+
+
+resource "kubernetes_namespace" "node_red_ns" {
+  depends_on = [
+    kubernetes_manifest.clusterissuer_letsencrypt_prod
+  ]
+  metadata {
+    annotations = {
+      name = "node-red"
+    }
+
+    name = "node-red"
+  }
+}
+resource "kubernetes_persistent_volume" "node_red_pv" {
+  depends_on = [
+    kubernetes_namespace.node_red_ns
+  ]
+  metadata {
+    labels = {
+      type = "local"
+    }
+    name = "node-red"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    capacity = {
+      storage = "5Gi"
+    }
+    persistent_volume_source {
+      host_path {
+        path = var.node_red_host_path
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_persistent_volume_claim" "node_red_pvc" {
+  depends_on = [
+    kubernetes_persistent_volume.node_red_pv
+  ]
+  metadata {
+    name      = "node-red"
+    namespace = "node-red"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    resources {
+      requests = {
+        "storage" = "5Gi"
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "helm_release" "node_red" {
+  depends_on = [
+    kubernetes_persistent_volume_claim.node_red_pvc
+  ]
+  name       = "node-red"
+  namespace  = "node-red"
+  repository = "https://k8s-at-home.com/charts"
+  chart      = "node-red"
+  #version      = "9.1.0"
+
+  values = [
+    "${file("values/node-red.values.yaml")}"
+  ]
+
+  set {
+    name  = "ingress.main.hosts[0].host"
+    value = "node-red.${var.domain}"
+  }
+  set {
+    name  = "ingress.main.tls[0].hosts[0]"
+    value = "node-red.${var.domain}"
   }
 }

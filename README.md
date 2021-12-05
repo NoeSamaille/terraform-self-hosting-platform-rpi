@@ -6,7 +6,7 @@ Terraform module to deploy your own self-hosted platform on Kubernetes on Raspbe
 
 - [x] Configure Kubernetes cluster
 - [x] Self-host password manager: Bitwarden
-- [ ] Self-host IoT dev platform: Node-RED
+- [x] Self-host IoT dev platform: Node-RED
 - [ ] Self-host home cloud: NextCloud
 - [ ] Self-host Media Center: Plex, Sonarr, Radarr, Transmission and Jackett
 - [ ] Self-host ads/trackers protection: Pi-Hole
