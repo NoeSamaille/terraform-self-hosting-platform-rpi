@@ -1,6 +1,6 @@
 image:
   repository: nextcloud
-  tag: 22.2.3-apache
+  tag: stable-apache
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -338,14 +338,14 @@ livenessProbe:
   initialDelaySeconds: 120
   periodSeconds: 30
   timeoutSeconds: 5
-  failureThreshold: 5
+  failureThreshold: 10
   successThreshold: 1
 readinessProbe:
   enabled: true
   initialDelaySeconds: 120
   periodSeconds: 30
   timeoutSeconds: 5
-  failureThreshold: 5
+  failureThreshold: 10
   successThreshold: 1
 startupProbe:
   enabled: false
