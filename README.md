@@ -7,7 +7,7 @@ Terraform module to deploy your own self-hosted platform on Kubernetes on Raspbe
 - [x] Configure Kubernetes cluster
 - [x] Self-host password manager: Bitwarden
 - [x] Self-host IoT dev platform: Node-RED
-- [ ] Self-host home cloud: NextCloud
+- [x] Self-host home cloud: NextCloud
 - [ ] Self-host Media Center: Plex, Sonarr, Radarr, Transmission and Jackett
 - [ ] Self-host ads/trackers protection: Pi-Hole
 
@@ -25,7 +25,7 @@ $ vim terraform.tfvars
 
 Once it's done you can start deploying resources:
 ```sh
+$ source init.sh # Generates admin passwords for bitwarden and nextcloud
 $ terraform init
-$ terraform plan
 $ terraform apply
 ```

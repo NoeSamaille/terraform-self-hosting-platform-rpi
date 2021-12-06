@@ -3,5 +3,13 @@
 ###############
 
 output "bitwarden_admin_token" {
-  value = data.external.bitwarden_admin_token.result.token
+  value = var.bitwarden_admin_token
+}
+
+###############
+# Nextcloud
+###############
+
+output "nextcloud_admin_password" {
+  value = var.nextcloud_admin_password
 }
