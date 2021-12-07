@@ -1,0 +1,97 @@
+replicaCount: 1
+
+image:
+  repository: haugene/transmission-openvpn
+  tag: latest
+  pullPolicy: IfNotPresent
+
+dnsPolicy: "None"
+
+dnsConfig:
+  nameservers:
+    - 8.8.8.8
+    - 8.8.4.4
+
+env:
+  - name: OPENVPN_PROVIDER
+    value: "CUSTOM"
+  - name: OPENVPN_CONFIG
+    value: "openvpn"
+  - name: OPENVPN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: openvpn
+        key: username
+  - name: OPENVPN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: openvpn
+        key: password
+  - name: TRANSMISSION_RPC_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: transmission
+        key: username
+  - name: TRANSMISSION_RPC_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: transmission
+        key: password
+  - name: TRANSMISSION_PEER_PORT
+    value: "47444"
+  - name: TRANSMISSION_RPC_AUTHENTICATION_REQUIRED
+    value: "true"
+  - name: TRANSMISSION_DOWNLOAD_DIR
+    value: "/downloads/transmission"
+  - name: PUID
+    value: "1000"
+  - name: PGID
+    value: "1000"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+
+volumes:
+  - name: media
+    persistentVolumeClaim:
+      claimName: media
+  - name: config
+    secret:
+      secretName: "openvpn"
+  - name: dev-tun
+    hostPath:
+      path: "/dev/net/tun"
+
+volumeMounts:
+    - name: media
+      mountPath: "/data"
+      subPath: "configs/transmission-data"
+    - name: media
+      mountPath: "/downloads/transmission"
+      subPath: "downloads/transmission"
+    - name: config
+      mountPath: "/etc/openvpn/custom/openvpn.ovpn"
+      subPath: "openvpn.ovpn"
+    - name: dev-tun
+      mountPath: "/dev/net/tun"
+
+# Security context for container
+securityContext:
+  capabilities:
+    add:
+      - NET_ADMIN
+
+podSecurityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+

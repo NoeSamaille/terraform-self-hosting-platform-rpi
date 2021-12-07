@@ -6,6 +6,10 @@ domain = "example.org"
 smtp_from = "example@gmail.com"
 smtp_username = "example@gmail.com"
 smtp_password = "changeme"
+ovpn_username = "changeme"
+ovpn_password = "changeme"
+metallb_addresses_first = "192.168.1.240"
+metallb_addresses_last = "192.168.1.250"
 
 #####################
 # cert-manager
@@ -31,3 +35,10 @@ node_red_host_path = "/mnt/hdd/node-red"
 #####################
 
 nextcloud_host_path = "/mnt/hdd/nextcloud"
+
+#####################
+# Media Center
+#####################
+
+media_host_path = "/mnt/hdd/media"
+transmission_username = "changeme"

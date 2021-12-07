@@ -26,7 +26,7 @@ resource "helm_release" "metallb" {
 
   set {
     name  = "configInline.address-pools[0].addresses[0]"
-    value = var.metallb_addresses
+    value = "${var.metallb_addresses_first}-${var.metallb_addresses_last}"
     type  = "string"
   }
 }
@@ -145,7 +145,6 @@ resource "kubernetes_manifest" "clusterissuer_letsencrypt_prod" {
 # Deploy kubernetes-dashboard in Kubernetes
 ################################################
 
-
 resource "helm_release" "kubernetes_dashboard" {
   depends_on = [
     helm_release.nginx_ingress_controller
@@ -165,11 +164,11 @@ resource "helm_release" "kubernetes_dashboard" {
 
   set {
     name  = "ingress.hosts[0]"
-    value = "dashboard.${var.domain}"
+    value = "dashboard.${var.metallb_addresses_first}.nip.io"
   }
   set {
     name  = "ingress.tls[0].hosts[0]"
-    value = "dashboard.${var.domain}"
+    value = "dashboard.${var.metallb_addresses_first}.nip.io"
   }
 }
 
@@ -561,4 +560,236 @@ resource "helm_release" "nextcloud" {
     name  = "ingress.tls[0].hosts[0]"
     value = "cloud.${var.domain}"
   }
+}
+
+
+################################################
+# Deploy Media Center in Kubernetes
+################################################
+
+resource "kubernetes_namespace" "media_ns" {
+  depends_on = [
+    helm_release.nginx_ingress_controller
+  ]
+  metadata {
+    annotations = {
+      name = "media"
+    }
+
+    name = "media"
+  }
+}
+resource "kubernetes_persistent_volume" "media_pv" {
+  depends_on = [
+    kubernetes_namespace.media_ns
+  ]
+  metadata {
+    labels = {
+      type = "local"
+    }
+    name = "media"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    capacity = {
+      storage = "2Ti"
+    }
+    persistent_volume_source {
+      host_path {
+        path = var.media_host_path
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_persistent_volume_claim" "media_pvc" {
+  depends_on = [
+    kubernetes_persistent_volume.media_pv
+  ]
+  metadata {
+    name      = "media"
+    namespace = "media"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    resources {
+      requests = {
+        "storage" = "2Ti"
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_ingress" "media_ingress" {
+  depends_on = [
+    kubernetes_namespace.media_ns
+  ]
+  metadata {
+    name = "media-ingress"
+    namespace = "media"
+  }
+
+  spec {
+
+    rule {
+      host = "media.${var.metallb_addresses_first}.nip.io"
+      http {
+        path {
+          backend {
+            service_name = "transmission-transmission-openvpn"
+            service_port = 80
+          }
+          path = "/transmission"
+        }
+        path {
+          backend {
+            service_name = "sonarr"
+            service_port = 80
+          }
+          path = "/sonarr"
+        }
+        path {
+          backend {
+            service_name = "jackett"
+            service_port = 80
+          }
+          path = "/jackett"
+        }
+        path {
+          backend {
+            service_name = "radarr"
+            service_port = 80
+          }
+          path = "/radarr"
+        }
+        path {
+          backend {
+            service_name = "plex-kube-plex"
+            service_port = 32400
+          }
+          path = "/"
+        }
+      }
+    }
+  }
+}
+resource "kubernetes_secret" "openvpn_secret" {
+  depends_on = [
+    kubernetes_namespace.media_ns
+  ]
+  metadata {
+    name = "openvpn"
+    namespace = "media"
+  }
+
+  data = {
+    "openvpn.ovpn" = "${file("${path.module}/openvpn.ignore.ovpn")}"
+    username = var.ovpn_username
+    password = var.ovpn_password
+  }
+}
+resource "kubernetes_secret" "transmission_secret" {
+  depends_on = [
+    kubernetes_namespace.media_ns
+  ]
+  metadata {
+    name = "transmission"
+    namespace = "media"
+  }
+
+  data = {
+    username = var.transmission_username
+    password = var.transmission_password
+  }
+}
+resource "helm_release" "transmission" {
+  depends_on = [
+    kubernetes_persistent_volume_claim.media_pvc,
+    kubernetes_ingress.media_ingress,
+    kubernetes_secret.openvpn_secret,
+    kubernetes_secret.transmission_secret,
+  ]
+  name        = "transmission"
+  namespace   = "media"
+  repository  = "https://bananaspliff.github.io/geek-charts"
+  chart       = "transmission-openvpn"
+  timeout     = 600
+  wait        = true
+  #version    = "0.1.0"
+
+  values = [
+    "${file("values/media.transmission.values.yaml")}"
+  ]
+}
+resource "helm_release" "flaresolverr" {
+  depends_on = [
+    kubernetes_persistent_volume_claim.media_pvc,
+    helm_release.transmission
+  ]
+  name        = "flaresolverr"
+  namespace   = "media"
+  repository  = "https://k8s-at-home.com/charts"
+  chart       = "flaresolverr"
+  timeout     = 600
+  wait        = true
+  #version    = "5.1.0"
+
+  values = [
+    "${file("values/media.flaresolverr.values.yaml")}"
+  ]
+}
+resource "helm_release" "jackett" {
+  depends_on = [
+    kubernetes_persistent_volume_claim.media_pvc,
+    helm_release.flaresolverr
+  ]
+  name        = "jackett"
+  namespace   = "media"
+  repository  = "https://bananaspliff.github.io/geek-charts"
+  chart       = "jackett"
+  timeout     = 600
+  wait        = true
+  #version    = "0.1.0"
+
+  values = [
+    "${file("values/media.jackett.values.yaml")}"
+  ]
+}
+resource "helm_release" "radarr" {
+  depends_on = [
+    kubernetes_persistent_volume_claim.media_pvc,
+    helm_release.jackett
+  ]
+  name        = "radarr"
+  namespace   = "media"
+  repository  = "https://bananaspliff.github.io/geek-charts"
+  chart       = "radarr"
+  timeout     = 600
+  wait        = true
+  #version    = "0.1.0"
+
+  values = [
+    "${file("values/media.radarr.values.yaml")}"
+  ]
+}
+resource "helm_release" "sonarr" {
+  depends_on = [
+    kubernetes_persistent_volume_claim.media_pvc,
+    helm_release.jackett
+  ]
+  name        = "sonarr"
+  namespace   = "media"
+  repository  = "https://bananaspliff.github.io/geek-charts"
+  chart       = "sonarr"
+  timeout     = 600
+  wait        = true
+  #version    = "0.1.0"
+
+  values = [
+    "${file("values/media.sonarr.values.yaml")}"
+  ]
 }
