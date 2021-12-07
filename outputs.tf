@@ -13,3 +13,14 @@ output "bitwarden_admin_token" {
 output "nextcloud_admin_password" {
   value = var.nextcloud_admin_password
 }
+
+###############
+# Media
+###############
+
+output "transmission_username" {
+  value = var.transmission_username
+}
+output "transmission_password" {
+  value = var.transmission_password
+}

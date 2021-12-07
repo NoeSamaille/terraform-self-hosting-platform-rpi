@@ -33,15 +33,27 @@ variable "smtp_password" {
   type        = string
   description = "SMTP password."
 }
+variable "ovpn_username" {
+  type        = string
+  description = "OpenVPN username."
+}
+variable "ovpn_password" {
+  type        = string
+  description = "OpenVPN password."
+}
 
 #####################
 # MetalLB
 #####################
 
-variable "metallb_addresses" {
+variable "metallb_addresses_first" {
   type        = string
-  description = "Address-pool from which MetalLB will dedicate a virtual IP to be used as load balancer for an application."
-  default     = "192.168.1.240-192.168.1.250"
+  description = "First address of the address-pool from which MetalLB will dedicate a virtual IP to be used as load balancer for an application."
+}
+
+variable "metallb_addresses_last" {
+  type        = string
+  description = "Last address of the address-pool from which MetalLB will dedicate a virtual IP to be used as load balancer for an application."
 }
 
 #####################
@@ -110,4 +122,21 @@ variable "nextcloud_mail_domain" {
   type        = string
   description = "Email domain to use for Nextcloud."
   default     = "gmail.com"
+}
+
+#####################
+# Media Center
+#####################
+
+variable "media_host_path" {
+  type        = string
+  description = "Local host path in with to store media center persistent data."
+}
+variable "transmission_username" {
+  type        = string
+  description = "transmission username."
+}
+variable "transmission_password" {
+  type        = string
+  description = "transmission password."
 }

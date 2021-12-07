@@ -1,0 +1,55 @@
+
+replicaCount: 1
+
+image:
+  repository: linuxserver/jackett
+  tag: latest
+  pullPolicy: IfNotPresent
+
+env:
+  - name: TZ
+    value: Europe/Paris
+  - name: PUID
+    value: "1000"
+  - name: PGID
+    value: "1000"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+
+volumes:
+  - name: media
+    persistentVolumeClaim:
+      claimName: media
+
+volumeMounts:
+  - name: media
+    mountPath: "/config"
+    subPath: "configs/jackett"
+  - name: media
+    mountPath: "/downloads"
+    subPath: "downloads/jackett"
+
+resources:
+  requests:
+    memory: 128Mi
+    cpu: 0.1
+  limits:
+    memory: 256Mi
+    cpu: 0.5
+
+securityContext:
+  capabilities: # Needed for VPN
+    add:
+      - NET_ADMIN
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
