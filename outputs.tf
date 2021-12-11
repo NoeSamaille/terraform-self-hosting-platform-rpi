@@ -1,4 +1,12 @@
 ###############
+# Dashboard
+###############
+
+output "dashboard_admin_token" {
+  value = data.external.dashboard_admin_token.result.token
+}
+
+###############
 # Bitwarden
 ###############
 
