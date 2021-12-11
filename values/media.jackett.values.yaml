@@ -22,15 +22,18 @@ ingress:
   enabled: false
 
 volumes:
-  - name: media
+  - name: media-apps
     persistentVolumeClaim:
-      claimName: media
+      claimName: media-apps
+  - name: media-data
+    persistentVolumeClaim:
+      claimName: media-data
 
 volumeMounts:
-  - name: media
+  - name: media-apps
     mountPath: "/config"
     subPath: "configs/jackett"
-  - name: media
+  - name: media-data
     mountPath: "/downloads"
     subPath: "downloads/jackett"
 

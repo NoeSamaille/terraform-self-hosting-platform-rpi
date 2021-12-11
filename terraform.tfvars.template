@@ -23,22 +23,28 @@ cert_manager_issuer_email = "email@example.com"
 
 bitwarden_host_path = "/mnt/hdd/bitwarden"
 bitwarden_server_admin_email = "email@example.com"
+#deploy_bitwarden = false
 
 #####################
 # Node-RED
 #####################
 
 node_red_host_path = "/mnt/hdd/node-red"
+#deploy_node_red = false
 
 #####################
 # Nextcloud
 #####################
 
-nextcloud_host_path = "/mnt/hdd/nextcloud"
+nextcloud_app_host_path = "/mnt/ssd/nextcloud-app"
+nextcloud_data_host_path = "/mnt/hdd/nextcloud-data"
+#deploy_nextcloud = false
 
 #####################
 # Media Center
 #####################
 
-media_host_path = "/mnt/hdd/media"
+media_apps_host_path = "/mnt/ssd/media-apps"
+media_data_host_path = "/mnt/hdd/media-data"
 transmission_username = "changeme"
+#deploy_deploy_media_center = false

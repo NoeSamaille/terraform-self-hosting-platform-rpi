@@ -1,3 +1,4 @@
+
 ################################################
 # Deploy MetalLB in Kubernetes
 ################################################
@@ -145,13 +146,15 @@ resource "kubernetes_manifest" "clusterissuer_letsencrypt_prod" {
 # Deploy kubernetes-dashboard in Kubernetes
 ################################################
 
+
 resource "helm_release" "kubernetes_dashboard" {
   depends_on = [
+    kubernetes_manifest.clusterissuer_letsencrypt_staging,
     helm_release.nginx_ingress_controller
   ]
   name             = "kubernetes-dashboard"
   namespace        = "kubernetes-dashboard"
-  create_namespace = "true"
+  create_namespace = true
   repository       = "https://kubernetes.github.io/dashboard"
   chart            = "kubernetes-dashboard"
   #version      = "5.0.4"
@@ -164,11 +167,11 @@ resource "helm_release" "kubernetes_dashboard" {
 
   set {
     name  = "ingress.hosts[0]"
-    value = "dashboard.${var.metallb_addresses_first}.nip.io"
+    value = "kubernetes-dashboard.${var.domain}"
   }
   set {
     name  = "ingress.tls[0].hosts[0]"
-    value = "dashboard.${var.metallb_addresses_first}.nip.io"
+    value = "kubernetes-dashboard.${var.domain}"
   }
 }
 
@@ -188,7 +191,7 @@ resource "kubernetes_manifest" "serviceaccount_kubernetes_dashboard_admin_user" 
 }
 resource "kubernetes_manifest" "clusterrolebinding_admin_user" {
   depends_on = [
-    helm_release.kubernetes_dashboard
+    kubernetes_manifest.serviceaccount_kubernetes_dashboard_admin_user
   ]
   manifest = {
     "apiVersion" = "rbac.authorization.k8s.io/v1"
@@ -209,6 +212,12 @@ resource "kubernetes_manifest" "clusterrolebinding_admin_user" {
       },
     ]
   }
+}
+data "external" "dashboard_admin_token" {
+  depends_on = [
+    kubernetes_manifest.clusterrolebinding_admin_user
+  ]
+  program = ["${path.module}/scripts/dashboard-admin-token.sh"]
 }
 # NOTE to retrieve the unique access token of admin-user: kubectl -n kubernetes-dashboard describe secret $(kubectl -n kubernetes-dashboard get secret | grep admin-user | awk '{print $1}')
 
@@ -275,19 +284,20 @@ resource "kubernetes_persistent_volume_claim" "bitwarden_pvc" {
     storage_class_name = "manual"
   }
 }
-resource "helm_release" "bitwarden-k8s" {
+resource "helm_release" "bitwarden" {
   depends_on = [
     kubernetes_persistent_volume_claim.bitwarden_pvc
   ]
-  name      = "bitwarden-k8s"
-  namespace = "bitwarden"
-  chart     = "charts/bitwarden-k8s"
-  timeout   = 600
-  wait      = true
-  #version      = "5.0.4"
+  name             = "bitwarden"
+  namespace        = "bitwarden"
+  repository       = "https://k8s-at-home.com/charts"
+  chart            = "vaultwarden"
+  #version      = "3.3.1"
+  timeout     = 600
+  wait        = true
 
   values = [
-    "${file("values/bitwarden-k8s.values.yaml")}"
+    "${file("values/vaultwarden.values.yaml")}"
   ]
 
   set {
@@ -308,7 +318,7 @@ resource "helm_release" "bitwarden-k8s" {
   }
   set {
     name  = "env.DOMAIN"
-    value = "https://bitwarden.${var.domain}"
+    value = "https://vault.${var.domain}"
   }
   set {
     name  = "env.SMTP_HOST"
@@ -335,12 +345,12 @@ resource "helm_release" "bitwarden-k8s" {
     value = var.smtp_password
   }
   set {
-    name  = "ingress.hosts[0]"
-    value = "bitwarden.${var.domain}"
+    name  = "ingress.main.hosts[0].host"
+    value = "vault.${var.domain}"
   }
   set {
-    name  = "ingress.tls[0].hosts[0]"
-    value = "bitwarden.${var.domain}"
+    name  = "ingress.main.tls[0].hosts[0]"
+    value = "vault.${var.domain}"
   }
 }
 
@@ -425,11 +435,11 @@ resource "helm_release" "node_red" {
 
   set {
     name  = "ingress.main.hosts[0].host"
-    value = "node-red.${var.domain}"
+    value = "flows.${var.domain}"
   }
   set {
     name  = "ingress.main.tls[0].hosts[0]"
-    value = "node-red.${var.domain}"
+    value = "flows.${var.domain}"
   }
 }
 
@@ -451,7 +461,7 @@ resource "kubernetes_namespace" "nextcloud_ns" {
     name = "nextcloud"
   }
 }
-resource "kubernetes_persistent_volume" "nextcloud_pv" {
+resource "kubernetes_persistent_volume" "nextcloud_app_pv" {
   depends_on = [
     kubernetes_namespace.nextcloud_ns
   ]
@@ -459,7 +469,52 @@ resource "kubernetes_persistent_volume" "nextcloud_pv" {
     labels = {
       type = "local"
     }
-    name = "nextcloud"
+    name = "nextcloud-app"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    capacity = {
+      storage = "30Gi"
+    }
+    persistent_volume_source {
+      host_path {
+        path = var.nextcloud_app_host_path
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_persistent_volume_claim" "nextcloud_app_pvc" {
+  depends_on = [
+    kubernetes_persistent_volume.nextcloud_app_pv
+  ]
+  metadata {
+    name      = "nextcloud-app"
+    namespace = "nextcloud"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    resources {
+      requests = {
+        "storage" = "30Gi"
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_persistent_volume" "nextcloud_data_pv" {
+  depends_on = [
+    kubernetes_namespace.nextcloud_ns
+  ]
+  metadata {
+    labels = {
+      type = "local"
+    }
+    name = "nextcloud-data"
   }
   spec {
     access_modes = [
@@ -470,18 +525,18 @@ resource "kubernetes_persistent_volume" "nextcloud_pv" {
     }
     persistent_volume_source {
       host_path {
-        path = var.nextcloud_host_path
+        path = var.nextcloud_data_host_path
       }
     }
     storage_class_name = "manual"
   }
 }
-resource "kubernetes_persistent_volume_claim" "nextcloud_pvc" {
+resource "kubernetes_persistent_volume_claim" "nextcloud_data_pvc" {
   depends_on = [
-    kubernetes_persistent_volume.nextcloud_pv
+    kubernetes_persistent_volume.nextcloud_data_pv
   ]
   metadata {
-    name      = "nextcloud"
+    name      = "nextcloud-data"
     namespace = "nextcloud"
   }
   spec {
@@ -498,7 +553,8 @@ resource "kubernetes_persistent_volume_claim" "nextcloud_pvc" {
 }
 resource "helm_release" "nextcloud" {
   depends_on = [
-    kubernetes_persistent_volume_claim.nextcloud_pvc
+    kubernetes_persistent_volume_claim.nextcloud_app_pvc,
+    kubernetes_persistent_volume_claim.nextcloud_data_pvc
   ]
   name        = "nextcloud"
   namespace   = "nextcloud"
@@ -514,7 +570,7 @@ resource "helm_release" "nextcloud" {
 
   set {
     name  = "nextcloud.host"
-    value = "cloud.${var.domain}"
+    value = "drive.${var.domain}"
   }
   set {
     name  = "nextcloud.password"
@@ -554,11 +610,11 @@ resource "helm_release" "nextcloud" {
   }
   set {
     name  = "ingress.hosts[0].host"
-    value = "cloud.${var.domain}"
+    value = "drive.${var.domain}"
   }
   set {
     name  = "ingress.tls[0].hosts[0]"
-    value = "cloud.${var.domain}"
+    value = "drive.${var.domain}"
   }
 }
 
@@ -579,7 +635,7 @@ resource "kubernetes_namespace" "media_ns" {
     name = "media"
   }
 }
-resource "kubernetes_persistent_volume" "media_pv" {
+resource "kubernetes_persistent_volume" "media_apps_pv" {
   depends_on = [
     kubernetes_namespace.media_ns
   ]
@@ -587,7 +643,52 @@ resource "kubernetes_persistent_volume" "media_pv" {
     labels = {
       type = "local"
     }
-    name = "media"
+    name = "media-apps"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    capacity = {
+      storage = "50Gi"
+    }
+    persistent_volume_source {
+      host_path {
+        path = var.media_apps_host_path
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_persistent_volume_claim" "media_apps_pvc" {
+  depends_on = [
+    kubernetes_persistent_volume.media_apps_pv
+  ]
+  metadata {
+    name      = "media-apps"
+    namespace = "media"
+  }
+  spec {
+    access_modes = [
+      "ReadWriteOnce",
+    ]
+    resources {
+      requests = {
+        "storage" = "50Gi"
+      }
+    }
+    storage_class_name = "manual"
+  }
+}
+resource "kubernetes_persistent_volume" "media_data_pv" {
+  depends_on = [
+    kubernetes_namespace.media_ns
+  ]
+  metadata {
+    labels = {
+      type = "local"
+    }
+    name = "media-data"
   }
   spec {
     access_modes = [
@@ -598,18 +699,18 @@ resource "kubernetes_persistent_volume" "media_pv" {
     }
     persistent_volume_source {
       host_path {
-        path = var.media_host_path
+        path = var.media_data_host_path
       }
     }
     storage_class_name = "manual"
   }
 }
-resource "kubernetes_persistent_volume_claim" "media_pvc" {
+resource "kubernetes_persistent_volume_claim" "media_data_pvc" {
   depends_on = [
-    kubernetes_persistent_volume.media_pv
+    kubernetes_persistent_volume.media_data_pv
   ]
   metadata {
-    name      = "media"
+    name      = "media-data"
     namespace = "media"
   }
   spec {
@@ -631,6 +732,9 @@ resource "kubernetes_ingress" "media_ingress" {
   metadata {
     name = "media-ingress"
     namespace = "media"
+    annotations = {
+      "ingress.class" = "nginx"
+    }
   }
 
   spec {
@@ -708,7 +812,8 @@ resource "kubernetes_secret" "transmission_secret" {
 }
 resource "helm_release" "transmission" {
   depends_on = [
-    kubernetes_persistent_volume_claim.media_pvc,
+    kubernetes_persistent_volume_claim.media_apps_pvc,
+    kubernetes_persistent_volume_claim.media_data_pvc,
     kubernetes_ingress.media_ingress,
     kubernetes_secret.openvpn_secret,
     kubernetes_secret.transmission_secret,
@@ -727,7 +832,8 @@ resource "helm_release" "transmission" {
 }
 resource "helm_release" "flaresolverr" {
   depends_on = [
-    kubernetes_persistent_volume_claim.media_pvc,
+    kubernetes_persistent_volume_claim.media_apps_pvc,
+    kubernetes_persistent_volume_claim.media_data_pvc,
     helm_release.transmission
   ]
   name        = "flaresolverr"
@@ -744,7 +850,8 @@ resource "helm_release" "flaresolverr" {
 }
 resource "helm_release" "jackett" {
   depends_on = [
-    kubernetes_persistent_volume_claim.media_pvc,
+    kubernetes_persistent_volume_claim.media_apps_pvc,
+    kubernetes_persistent_volume_claim.media_data_pvc,
     helm_release.flaresolverr
   ]
   name        = "jackett"
@@ -761,7 +868,8 @@ resource "helm_release" "jackett" {
 }
 resource "helm_release" "radarr" {
   depends_on = [
-    kubernetes_persistent_volume_claim.media_pvc,
+    kubernetes_persistent_volume_claim.media_apps_pvc,
+    kubernetes_persistent_volume_claim.media_data_pvc,
     helm_release.jackett
   ]
   name        = "radarr"
@@ -778,7 +886,8 @@ resource "helm_release" "radarr" {
 }
 resource "helm_release" "sonarr" {
   depends_on = [
-    kubernetes_persistent_volume_claim.media_pvc,
+    kubernetes_persistent_volume_claim.media_apps_pvc,
+    kubernetes_persistent_volume_claim.media_data_pvc,
     helm_release.jackett
   ]
   name        = "sonarr"

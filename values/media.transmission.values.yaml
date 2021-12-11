@@ -56,9 +56,12 @@ ingress:
   enabled: false
 
 volumes:
-  - name: media
+  - name: media-apps
     persistentVolumeClaim:
-      claimName: media
+      claimName: media-apps
+  - name: media-data
+    persistentVolumeClaim:
+      claimName: media-data
   - name: config
     secret:
       secretName: "openvpn"
@@ -67,10 +70,10 @@ volumes:
       path: "/dev/net/tun"
 
 volumeMounts:
-    - name: media
+    - name: media-apps
       mountPath: "/data"
       subPath: "configs/transmission-data"
-    - name: media
+    - name: media-data
       mountPath: "/downloads/transmission"
       subPath: "downloads/transmission"
     - name: config

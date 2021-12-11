@@ -69,6 +69,11 @@ variable "cert_manager_issuer_email" {
 # Bitwarden
 #####################
 
+variable "deploy_bitwarden" {
+  type        = bool
+  description = "Flag indicating that Bitwarden should be deployed."
+  default     = true
+}
 variable "bitwarden_host_path" {
   type        = string
   description = "Local host path in with to store bitwarden persistent data."
@@ -96,6 +101,11 @@ variable "bitwarden_server_admin_email" {
 # Node-RED
 #####################
 
+variable "deploy_node_red" {
+  type        = bool
+  description = "Flag indicating that Node-RED should be deployed."
+  default     = true
+}
 variable "node_red_host_path" {
   type        = string
   description = "Local host path in with to store node-red persistent data."
@@ -105,9 +115,18 @@ variable "node_red_host_path" {
 # Nextcloud
 #####################
 
-variable "nextcloud_host_path" {
+variable "deploy_nextcloud" {
+  type        = bool
+  description = "Flag indicating that Nextcloud should be deployed."
+  default     = true
+}
+variable "nextcloud_app_host_path" {
   type        = string
-  description = "Local host path in with to store nextcloud persistent data."
+  description = "Local host path in with to store nextcloud app."
+}
+variable "nextcloud_data_host_path" {
+  type        = string
+  description = "Local host path in with to store nextcloud data."
 }
 variable "nextcloud_admin_password" {
   type        = string
@@ -128,9 +147,18 @@ variable "nextcloud_mail_domain" {
 # Media Center
 #####################
 
-variable "media_host_path" {
+variable "deploy_media_center" {
+  type        = bool
+  description = "Flag indicating that Media Center should be deployed."
+  default     = true
+}
+variable "media_apps_host_path" {
   type        = string
-  description = "Local host path in with to store media center persistent data."
+  description = "Local host path in with to store media center app data."
+}
+variable "media_data_host_path" {
+  type        = string
+  description = "Local host path in with to store media center data."
 }
 variable "transmission_username" {
   type        = string
@@ -140,3 +168,4 @@ variable "transmission_password" {
   type        = string
   description = "transmission password."
 }
+

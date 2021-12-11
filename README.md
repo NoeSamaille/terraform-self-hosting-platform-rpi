@@ -20,7 +20,8 @@ Terraform module to deploy your own self-hosted platform on Kubernetes on Raspbe
 ## Prerequisites
 
 - Accessible K8s/K3s cluster on your Pi.
-  - With `cert-manager` CustomResourceDefinition installed: `kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.16.0/cert-manager.crds.yaml`
+  - With `cert-manager` CustomResourceDefinition installed: `kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.16.0/cert-manager.crds.yaml`
+- For transmission bittorrent client, an OpenVPN config file stored in `openvpn.ignore.ovpn`, with `auth-user-pass` set to `/config/openvpn-credentials.txt` (auto auth), including cert and key.
 
 ## Usage
 
@@ -189,9 +190,7 @@ Apply complete! Resources: 0 added, 0 changed, 32 destroyed.
 #### Start K3s on Master pi
 
 ```sh
-pi@pi-master:~ $ export K3S_KUBECONFIG_MODE="644"
-pi@pi-master:~ $ export INSTALL_K3S_EXEC=" --no-deploy servicelb --no-deploy traefik"
-pi@pi-master:~ $ curl -sfL https://get.k3s.io | sh -
+pi@pi-master:~ $ curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC=" --no-deploy servicelb --no-deploy traefik" sh -
 ```
 
 #### Register workers
@@ -199,14 +198,12 @@ pi@pi-master:~ $ curl -sfL https://get.k3s.io | sh -
 1. Get K3s token on master pi, copy the result:
     ```sh
     pi@pi-master:~ $ sudo cat /var/lib/rancher/k3s/server/node-token
+    K103166a17...eebca269271
     ```
 2. Run K3s installer on worker (repeat on each worker):
-```sh
-pi@pi-worker-x:~ $ export K3S_KUBECONFIG_MODE="644"
-pi@pi-worker-x:~ $ export K3S_URL="https://<MASTER_IP>:6443"
-pi@pi-worker-x:~ $ export K3S_TOKEN="K103166a17...eebca269271"
-pi@pi-worker-x:~ $ curl -sfL https://get.k3s.io | sh -
-```
+    ```sh
+    pi@pi-worker-x:~ $ curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" K3S_URL="https://<MASTER_IP>:6443" K3S_TOKEN="K103166a17...eebca269271" sh -
+    ```
 
 #### Access K3s cluser from workstation
 
@@ -222,3 +219,70 @@ pi@pi-worker-x:~ $ curl -sfL https://get.k3s.io | sh -
     ```sh
     user@workstation:~ $ kubectl get nodes -o wide
     ```
+
+### Teardown K3s
+
+1. Worker(s)
+
+```sh
+user@workstation:~ $ sudo /usr/local/bin/k3s-agent-uninstall.sh
+```
+
+2. Master
+
+```sh
+pi@pi-master:~ $ sudo /usr/local/bin/k3s-uninstall.sh
+```
+
+## Known issues
+
+### Node-RED authentication
+
+Node-RED authentication isn't set up by default atm, you can set it up by scaling the deployment down, editing the `settings.js` file to enable authentication and scaling the deployment back up:
+
+```
+pi@pi-master:~ $ kubectl scale deployment/node-red --replicas=0 -n node-red
+pi@pi-master:~ $ vim /path/to/node-red/settings.js
+pi@pi-master:~ $ kubectl scale deployment/node-red --replicas=1 -n node-red
+```
+
+You can either set up authentication through GitHub ([Documentation](https://github.com/node-red/node-red-auth-github)):
+
+```js
+# settings.js
+... Ommited ...
+    adminAuth: require('node-red-auth-github')({
+        clientID: "<GITHUB_CLIENT_ID>",
+        clientSecret: "<GITHUB_CLIENT_SECRET>",
+        baseURL: "https://node-red.<DOMAIN>/",
+        users: [
+            { username: "<GITHUB_USERNAME>", permissions: ["*"]}
+        ]
+    }),
+... Ommited ...
+```
+
+Or classic user-pass authentication (generate a password hash using `node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 8));" <your-password-here>`):
+
+```js
+# settings.js
+... Ommited ...
+    adminAuth: {
+        type: "credentials",
+        users: [
+            {
+                username: "admin",
+                password: "$2a$08$zZWtXTja0fB1pzD4sHCMyOCMYz2Z6dNbM6tl8sJogENOMcxWV9DN.",
+                permissions: "*"
+            },
+            {
+                username: "guest",
+                password: "$2b$08$wuAqPiKJlVN27eF5qJp.RuQYuy6ZYONW7a/UWYxDTtwKFCdB8F19y",
+                permissions: "read"
+            }
+        ]
+    },
+... Ommited ...
+```
+
+More information in the [Docs: Securing Node-RED](https://nodered.org/docs/user-guide/runtime/securing-node-red).
